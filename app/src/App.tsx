@@ -16,6 +16,7 @@ type GameState = 'playing' | 'levelCleared' | 'gameOver'
 function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const gameRestartRef = useRef(0) // Use this to trigger game restarts
   const [events, setEvents] = useState<CalendarEvent[]>(getSampleEvents())
   const [score, setScore] = useState(0)
   const [level, setLevel] = useState(1)
@@ -73,6 +74,13 @@ function App() {
     setScore(0)
     setLevel(1)
     setGameState('playing')
+  }
+
+  const startAgain = () => {
+    setScore(0)
+    setLevel(1)
+    setGameState('playing')
+    gameRestartRef.current += 1 // Trigger game restart
   }
 
   const playSound = (frequency: number, duration: number) => {
@@ -162,6 +170,61 @@ function App() {
 
     document.addEventListener('keydown', keyDown)
     document.addEventListener('keyup', keyUp)
+
+    const handleCanvasClick = (ev: MouseEvent) => {
+      if (currentGameState === 'gameOver') {
+        const rect = canvas.getBoundingClientRect()
+        const clickX = ev.clientX - rect.left
+        const clickY = ev.clientY - rect.top
+        
+        // Check if click is in the text area (approximate bounds)
+        const textY = height / 2 + 60
+        const textWidth = 400 // Approximate width of the text (increased for longer text)
+        const textHeight = 30 // Approximate height of the text
+        
+        if (
+          clickX >= width / 2 - textWidth / 2 &&
+          clickX <= width / 2 + textWidth / 2 &&
+          clickY >= textY - textHeight / 2 &&
+          clickY <= textY + textHeight / 2
+        ) {
+          // Restart the game
+          setScore(0)
+          setLevel(1)
+          setGameState('playing')
+          gameRestartRef.current += 1
+        }
+      }
+    }
+
+    const handleCanvasMouseMove = (ev: MouseEvent) => {
+      if (currentGameState === 'gameOver') {
+        const rect = canvas.getBoundingClientRect()
+        const mouseX = ev.clientX - rect.left
+        const mouseY = ev.clientY - rect.top
+        
+        // Check if mouse is over the text area
+        const textY = height / 2 + 60
+        const textWidth = 400
+        const textHeight = 30
+        
+        if (
+          mouseX >= width / 2 - textWidth / 2 &&
+          mouseX <= width / 2 + textWidth / 2 &&
+          mouseY >= textY - textHeight / 2 &&
+          mouseY <= textY + textHeight / 2
+        ) {
+          canvas.style.cursor = 'pointer'
+        } else {
+          canvas.style.cursor = 'default'
+        }
+      } else {
+        canvas.style.cursor = 'default'
+      }
+    }
+
+    canvas.addEventListener('click', handleCanvasClick)
+    canvas.addEventListener('mousemove', handleCanvasMouseMove)
 
     const resetBallPosition = () => {
       const newStartX = leftMargin + Math.random() * (width - leftMargin - 20) + 10
@@ -405,7 +468,11 @@ function App() {
         ctx.fillStyle = '#fff'
         ctx.font = 'bold 24px sans-serif'
         ctx.fillText(`Final Score: ${currentScore}`, width / 2, height / 2 + 30)
-        ctx.fillText('Click "Start Again" to play!', width / 2, height / 2 + 60)
+        
+        // Make the restart text look clickable
+        ctx.fillStyle = '#4CAF50' // Green color to indicate it's interactive
+        ctx.font = 'bold 20px sans-serif'
+        ctx.fillText('📱 Click here or "Start Again" button to play!', width / 2, height / 2 + 60)
       }
     }
 
@@ -419,6 +486,8 @@ function App() {
     return () => {
       document.removeEventListener('keydown', keyDown)
       document.removeEventListener('keyup', keyUp)
+      canvas.removeEventListener('click', handleCanvasClick)
+      canvas.removeEventListener('mousemove', handleCanvasMouseMove)
       if (levelClearedTimer !== null) {
         clearTimeout(levelClearedTimer)
       }
@@ -426,7 +495,7 @@ function App() {
         clearTimeout(gameOverTimer)
       }
     }
-  }, [events, canvasDimensions]) // Restart when events or canvas size changes
+  }, [events, canvasDimensions, gameRestartRef.current]) // Restart when events, size, or restart trigger changes
 
   return (
     <div className="app-container">
@@ -464,11 +533,7 @@ function App() {
         {gameState === 'gameOver' && (
           <button 
             className="start-again-button"
-            onClick={() => {
-              setScore(0)
-              setLevel(1)
-              setGameState('playing')
-            }}
+            onClick={startAgain}
           >
             🎮 Start Again
           </button>
