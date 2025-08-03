@@ -22,6 +22,28 @@ function App() {
   const [gameState, setGameState] = useState<GameState>('playing')
   const [soundEnabled, setSoundEnabled] = useState(true)
 
+  // Calculate responsive canvas dimensions
+  const getCanvasDimensions = () => {
+    const viewportHeight = window.innerHeight
+    if (viewportHeight <= 700) return { width: 500, height: 500 }
+    if (viewportHeight <= 800) return { width: 600, height: 600 }
+    if (viewportHeight <= 900) return { width: 700, height: 700 }
+    if (viewportHeight <= 1000) return { width: 800, height: 800 }
+    return { width: 800, height: 900 }
+  }
+
+  const [canvasDimensions, setCanvasDimensions] = useState(getCanvasDimensions())
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setCanvasDimensions(getCanvasDimensions())
+    }
+    
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -172,22 +194,7 @@ function App() {
       }
 
       if (currentGameState === 'gameOver') {
-        if (gameOverTimer === null) {
-          gameOverTimer = window.setTimeout(() => {
-            currentScore = 0
-            currentLevel = 1
-            setScore(0)
-            setLevel(1)
-            currentGameState = 'playing'
-            setGameState('playing')
-            
-            resetBallPosition()
-            ball.vx = baseSpeed * (Math.random() > 0.5 ? 1 : -1)
-            ball.vy = -baseSpeed
-            bricks.forEach(b => b.broken = false)
-            gameOverTimer = null
-          }, 3000)
-        }
+        // Don't auto-restart, wait for user action
         return
       }
 
@@ -398,7 +405,7 @@ function App() {
         ctx.fillStyle = '#fff'
         ctx.font = 'bold 24px sans-serif'
         ctx.fillText(`Final Score: ${currentScore}`, width / 2, height / 2 + 30)
-        ctx.fillText('Restarting...', width / 2, height / 2 + 60)
+        ctx.fillText('Click "Start Again" to play!', width / 2, height / 2 + 60)
       }
     }
 
@@ -419,7 +426,7 @@ function App() {
         clearTimeout(gameOverTimer)
       }
     }
-  }, [events]) // Only restart when events change, not when score/level/gameState change
+  }, [events, canvasDimensions]) // Restart when events or canvas size changes
 
   return (
     <div className="app-container">
@@ -454,8 +461,24 @@ function App() {
         >
           🔊 {soundEnabled ? 'Sound On' : 'Sound Off'}
         </button>
+        {gameState === 'gameOver' && (
+          <button 
+            className="start-again-button"
+            onClick={() => {
+              setScore(0)
+              setLevel(1)
+              setGameState('playing')
+            }}
+          >
+            🎮 Start Again
+          </button>
+        )}
       </div>
-      <canvas ref={canvasRef} width={800} height={900} />
+      <canvas 
+        ref={canvasRef} 
+        width={canvasDimensions.width} 
+        height={canvasDimensions.height} 
+      />
       <div className="instructions">
         <p>Use arrow keys to move the paddle and break your calendar events!</p>
         <p>Import your own iCal file to play with your real calendar.</p>

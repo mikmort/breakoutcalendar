@@ -91,6 +91,27 @@
   filter: brightness(1.1);
 }
 
+.start-again-button {
+  background: #007bff;
+  color: white;
+  font-weight: bold;
+  animation: pulse 2s infinite;
+}
+
+.start-again-button:hover {
+  background: #0056b3;
+  transform: translateY(-1px);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
 canvas {
   border: 2px solid #ddd;
   border-radius: 8px;
@@ -109,4 +130,96 @@ canvas {
 
 .instructions p {
   margin: 5px 0;
+}
+
+/* Responsive design for smaller screen heights */
+@media (max-height: 1000px) {
+  .app-title {
+    font-size: 2.5rem;
+    margin: 10px 0 5px 0;
+  }
+  
+  .app-container {
+    gap: 15px;
+  }
+  
+  canvas {
+    width: 800px;
+    height: 800px;
+  }
+}
+
+@media (max-height: 900px) {
+  .app-title {
+    font-size: 2rem;
+    margin: 5px 0;
+  }
+  
+  .app-container {
+    gap: 10px;
+  }
+  
+  canvas {
+    width: 700px;
+    height: 700px;
+  }
+  
+  .controls {
+    margin-bottom: 5px;
+  }
+}
+
+@media (max-height: 800px) {
+  .app-title {
+    font-size: 1.5rem;
+    margin: 2px 0;
+  }
+  
+  .app-container {
+    gap: 8px;
+  }
+  
+  canvas {
+    width: 600px;
+    height: 600px;
+  }
+  
+  .import-button, .reset-button, .sound-toggle, .start-again-button {
+    padding: 8px 16px;
+    font-size: 12px;
+  }
+  
+  .instructions {
+    font-size: 12px;
+  }
+}
+
+@media (max-height: 700px) {
+  .app-title {
+    display: none; /* Hide title on very small screens */
+  }
+  
+  .app-container {
+    gap: 5px;
+  }
+  
+  canvas {
+    width: 500px;
+    height: 500px;
+  }
+  
+  .controls {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+  
+  .import-button, .reset-button, .sound-toggle, .start-again-button {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+  
+  .instructions {
+    display: none; /* Hide instructions on very small screens */
+  }
 }
