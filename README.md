@@ -3,7 +3,7 @@
 A fun breakout-style game where your calendar events become the blocks to destroy! Built with React, TypeScript, and Vite.
 
 ## 🎯 Features
-
+ 
 - **Interactive Calendar Game**: Your events become breakout blocks
 - **iCal Import**: Upload your real calendar files (.ics format)
 - **Scoring System**: Earn points for every event you break
