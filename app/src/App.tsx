@@ -172,14 +172,11 @@ function App() {
     document.addEventListener('keyup', keyUp)
 
     // Touch controls for mobile devices
-    let touchX: number | null = null
     let isTouching = false
 
     const handleTouchStart = (ev: TouchEvent) => {
       ev.preventDefault() // Prevent scrolling
       if (ev.touches.length > 0) {
-        const rect = canvas.getBoundingClientRect()
-        touchX = ev.touches[0].clientX - rect.left
         isTouching = true
       }
     }
@@ -192,14 +189,12 @@ function App() {
         
         // Move paddle to follow touch position (centered on touch)
         paddle.x = Math.max(0, Math.min(width - paddle.width, newTouchX - paddle.width / 2))
-        touchX = newTouchX
       }
     }
 
     const handleTouchEnd = (ev: TouchEvent) => {
       ev.preventDefault()
       isTouching = false
-      touchX = null
     }
 
     // Add touch event listeners
