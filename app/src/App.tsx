@@ -171,6 +171,42 @@ function App() {
     document.addEventListener('keydown', keyDown)
     document.addEventListener('keyup', keyUp)
 
+    // Touch controls for mobile devices
+    let touchX: number | null = null
+    let isTouching = false
+
+    const handleTouchStart = (ev: TouchEvent) => {
+      ev.preventDefault() // Prevent scrolling
+      if (ev.touches.length > 0) {
+        const rect = canvas.getBoundingClientRect()
+        touchX = ev.touches[0].clientX - rect.left
+        isTouching = true
+      }
+    }
+
+    const handleTouchMove = (ev: TouchEvent) => {
+      ev.preventDefault() // Prevent scrolling
+      if (isTouching && ev.touches.length > 0) {
+        const rect = canvas.getBoundingClientRect()
+        const newTouchX = ev.touches[0].clientX - rect.left
+        
+        // Move paddle to follow touch position (centered on touch)
+        paddle.x = Math.max(0, Math.min(width - paddle.width, newTouchX - paddle.width / 2))
+        touchX = newTouchX
+      }
+    }
+
+    const handleTouchEnd = (ev: TouchEvent) => {
+      ev.preventDefault()
+      isTouching = false
+      touchX = null
+    }
+
+    // Add touch event listeners
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false })
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false })
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false })
+
     const handleCanvasClick = (ev: MouseEvent) => {
       if (currentGameState === 'gameOver') {
         const rect = canvas.getBoundingClientRect()
@@ -488,6 +524,9 @@ function App() {
       document.removeEventListener('keyup', keyUp)
       canvas.removeEventListener('click', handleCanvasClick)
       canvas.removeEventListener('mousemove', handleCanvasMouseMove)
+      canvas.removeEventListener('touchstart', handleTouchStart)
+      canvas.removeEventListener('touchmove', handleTouchMove)
+      canvas.removeEventListener('touchend', handleTouchEnd)
       if (levelClearedTimer !== null) {
         clearTimeout(levelClearedTimer)
       }
@@ -546,7 +585,8 @@ function App() {
       />
       <div className="instructions">
         <p>Use arrow keys to move the paddle and break your calendar events!</p>
-        <p>Import your own iCal file to play with your real calendar.</p>
+        <p className="desktop-only">Import your own iCal file to play with your real calendar.</p>
+        <p className="mobile-only">Touch and drag on the game area to move the paddle!</p>
       </div>
     </div>
   )

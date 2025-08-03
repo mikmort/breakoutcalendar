@@ -118,6 +118,9 @@ canvas {
   background: #fff;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   font-family: Arial, sans-serif;
+  /* Touch-friendly settings for mobile */
+  touch-action: none; /* Prevent default touch behaviors like scrolling */
+  user-select: none; /* Prevent text selection on touch */
 }
 
 .instructions {
@@ -130,6 +133,14 @@ canvas {
 
 .instructions p {
   margin: 5px 0;
+}
+
+.mobile-only {
+  display: none;
+}
+
+.desktop-only {
+  display: block;
 }
 
 /* Responsive design for smaller screen heights */
@@ -221,5 +232,54 @@ canvas {
   
   .instructions {
     display: none; /* Hide instructions on very small screens */
+  }
+}
+
+/* Mobile-specific improvements */
+@media (max-width: 600px) {
+  .app-title {
+    font-size: 1.8rem;
+    margin: 5px 0;
+  }
+  
+  .controls {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  
+  .import-button, .reset-button, .sound-toggle, .start-again-button {
+    padding: 8px 12px;
+    font-size: 12px;
+    min-width: 100px;
+  }
+  
+  canvas {
+    max-width: 95vw;
+    height: auto;
+  }
+  
+  .mobile-only {
+    display: block;
+  }
+  
+  .desktop-only {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-title {
+    font-size: 1.5rem;
+  }
+  
+  .controls {
+    gap: 6px;
+  }
+  
+  .import-button, .reset-button, .sound-toggle, .start-again-button {
+    padding: 6px 10px;
+    font-size: 11px;
+    min-width: 80px;
   }
 }
