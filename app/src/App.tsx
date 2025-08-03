@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
+import { parseICalFile, getSampleEvents, type CalendarEvent } from './icalParser'
 
 type EventBlock = {
   x: number
@@ -10,8 +11,72 @@ type EventBlock = {
   broken: boolean
 }
 
+type GameState = 'playing' | 'levelCleared' | 'gameOver'
+
 function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [events, setEvents] = useState<CalendarEvent[]>(getSampleEvents())
+  const [score, setScore] = useState(0)
+  const [level, setLevel] = useState(1)
+  const [gameState, setGameState] = useState<GameState>('playing')
+  const [soundEnabled, setSoundEnabled] = useState(true)
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = e.target?.result as string
+      if (content) {
+        try {
+          const parsedEvents = parseICalFile(content)
+          if (parsedEvents.length > 0) {
+            setEvents(parsedEvents)
+            resetGame()
+          } else {
+            alert('No valid events found in the iCal file')
+          }
+        } catch (error) {
+          console.error('Error parsing iCal file:', error)
+          alert('Error parsing iCal file. Please check the file format.')
+        }
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const resetGame = () => {
+    setScore(0)
+    setLevel(1)
+    setGameState('playing')
+  }
+
+  const playSound = (frequency: number, duration: number) => {
+    if (!soundEnabled) return
+    
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+      
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+      
+      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime)
+      oscillator.type = 'square'
+      
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration)
+      
+      oscillator.start(audioContext.currentTime)
+      oscillator.stop(audioContext.currentTime + duration)
+    } catch (error) {
+      // Fallback if Web Audio API is not supported
+      console.log('Sound not available')
+    }
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -22,22 +87,34 @@ function App() {
     const width = canvas.width
     const height = canvas.height
 
-    const paddle = { x: width / 2 - 40, y: height - 30, width: 80, height: 10, speed: 7 }
-    const ball = { x: width / 2, y: height / 2, vx: 4, vy: -4, r: 8 }
+    const paddle = { x: width / 2 - 40, y: height - 40, width: 80, height: 10, speed: 7, prevX: width / 2 - 40 }
+    const baseSpeed = 4
+    let currentBallSpeed = baseSpeed + (level - 1) * 1.5 // Use let for dynamic updates
 
-    const events = [
-      { day: 0, start: 9, end: 10, title: 'Standup' },
-      { day: 1, start: 13, end: 14, title: 'Lunch with Alice' },
-      { day: 2, start: 8, end: 9, title: 'Gym' },
-      { day: 4, start: 15, end: 16, title: 'Presentation' },
-      { day: 5, start: 11, end: 12, title: 'Doctor' },
-    ]
-
-    const brickWidth = width / 7 - 10
-    const hourHeight = 20
+    const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const leftMargin = 60 // Space for time labels
+    const calendarWidth = width - leftMargin
+    const brickWidth = calendarWidth / 7 - 10
+    const hourHeight = 35 // Increased from 20 to 35 for more vertical space
+    const headerHeight = 80 // Increased to make room for score/level display
+    const startHour = 8 // Start displaying from 8 AM
+    const endHour = 18 // End at 6 PM
+    
+    // Random starting position horizontally, halfway between bottom and blocks vertically
+    const blocksBottomY = (endHour - startHour) * hourHeight + headerHeight + 20
+    const startY = paddle.y - (paddle.y - blocksBottomY) / 2
+    const startX = leftMargin + Math.random() * (width - leftMargin - 20) + 10 // Random X within calendar area
+    const ball = { 
+      x: startX, 
+      y: startY, 
+      vx: currentBallSpeed * (Math.random() > 0.5 ? 1 : -1), // Random initial direction
+      vy: -currentBallSpeed, 
+      r: 8 
+    }
+    
     const bricks: EventBlock[] = events.map((e) => ({
-      x: e.day * (brickWidth + 10) + 5,
-      y: e.start * hourHeight + 40,
+      x: e.day * (brickWidth + 10) + leftMargin + 5,
+      y: (e.start - startHour) * hourHeight + headerHeight + 20,
       width: brickWidth,
       height: (e.end - e.start) * hourHeight - 5,
       title: e.title,
@@ -46,6 +123,11 @@ function App() {
 
     let leftPressed = false
     let rightPressed = false
+    let currentScore = score
+    let currentLevel = level
+    let currentGameState = gameState
+    let levelClearedTimer: number | null = null
+    let gameOverTimer: number | null = null
 
     const keyDown = (ev: KeyboardEvent) => {
       if (ev.key === 'ArrowLeft') leftPressed = true
@@ -59,21 +141,84 @@ function App() {
     document.addEventListener('keydown', keyDown)
     document.addEventListener('keyup', keyUp)
 
+    const resetBallPosition = () => {
+      const newStartX = leftMargin + Math.random() * (width - leftMargin - 20) + 10
+      const newStartY = paddle.y - (paddle.y - blocksBottomY) / 2
+      ball.x = newStartX
+      ball.y = newStartY
+    }
+
     const update = () => {
+      if (currentGameState === 'levelCleared') {
+        if (levelClearedTimer === null) {
+          levelClearedTimer = window.setTimeout(() => {
+            currentLevel++
+            setLevel(currentLevel)
+            currentGameState = 'playing'
+            setGameState('playing')
+            
+            // Reset ball position and speed for new level
+            resetBallPosition()
+            currentBallSpeed = baseSpeed + (currentLevel - 1) * 1.5
+            ball.vx = currentBallSpeed * (Math.random() > 0.5 ? 1 : -1)
+            ball.vy = -currentBallSpeed
+            
+            // Reset all bricks
+            bricks.forEach(b => b.broken = false)
+            levelClearedTimer = null
+          }, 2000)
+        }
+        return
+      }
+
+      if (currentGameState === 'gameOver') {
+        if (gameOverTimer === null) {
+          gameOverTimer = window.setTimeout(() => {
+            currentScore = 0
+            currentLevel = 1
+            setScore(0)
+            setLevel(1)
+            currentGameState = 'playing'
+            setGameState('playing')
+            
+            resetBallPosition()
+            ball.vx = baseSpeed * (Math.random() > 0.5 ? 1 : -1)
+            ball.vy = -baseSpeed
+            bricks.forEach(b => b.broken = false)
+            gameOverTimer = null
+          }, 3000)
+        }
+        return
+      }
+
+      if (currentGameState !== 'playing') return
+
+      // Store previous paddle position for physics calculation
+      paddle.prevX = paddle.x
+
       if (leftPressed) paddle.x -= paddle.speed
       if (rightPressed) paddle.x += paddle.speed
       paddle.x = Math.max(Math.min(paddle.x, width - paddle.width), 0)
 
+      // Calculate paddle velocity for physics
+      const paddleVelocity = paddle.x - paddle.prevX
+
       ball.x += ball.vx
       ball.y += ball.vy
 
-      if (ball.x < ball.r || ball.x > width - ball.r) ball.vx *= -1
-      if (ball.y < ball.r) ball.vy *= -1
+      if (ball.x < ball.r || ball.x > width - ball.r) {
+        ball.vx *= -1
+        playSound(300, 0.1) // Wall bounce sound
+      }
+      if (ball.y < ball.r) {
+        ball.vy *= -1
+        playSound(300, 0.1) // Ceiling bounce sound
+      }
       if (ball.y > height - ball.r) {
-        // reset
-        ball.x = width / 2
-        ball.y = height / 2
-        ball.vy = -4
+        // Game over
+        currentGameState = 'gameOver'
+        setGameState('gameOver')
+        return
       }
 
       if (
@@ -84,8 +229,23 @@ function App() {
       ) {
         ball.vy *= -1
         ball.y = paddle.y - ball.r
+        playSound(400, 0.15) // Paddle hit sound
+        
+        // Add paddle physics - transfer some paddle velocity to ball
+        const paddleInfluence = 0.3 // How much paddle movement affects ball
+        ball.vx += paddleVelocity * paddleInfluence
+        
+        // Add some randomness based on where ball hits paddle
+        const hitPosition = (ball.x - paddle.x) / paddle.width // 0 to 1
+        const angleInfluence = (hitPosition - 0.5) * 2 // -1 to 1
+        ball.vx += angleInfluence * 2
+        
+        // Ensure ball doesn't get too slow or too fast horizontally
+        const maxSpeed = currentBallSpeed * 1.5
+        ball.vx = Math.max(-maxSpeed, Math.min(maxSpeed, ball.vx))
       }
 
+      let blocksDestroyed = 0
       bricks.forEach((b) => {
         if (b.broken) return
         if (
@@ -96,8 +256,41 @@ function App() {
         ) {
           ball.vy *= -1
           b.broken = true
+          blocksDestroyed++
+          currentScore += 100
+          setScore(currentScore) // Update React state
+          playSound(600, 0.2) // Block break sound - higher pitch
         }
       })
+
+      // Check if all blocks are destroyed
+      const remainingBlocks = bricks.filter(b => !b.broken).length
+      if (remainingBlocks === 0) {
+        currentGameState = 'levelCleared'
+        setGameState('levelCleared')
+      }
+    }
+
+    // Helper function to wrap text within a given width
+    const wrapText = (text: string, x: number, y: number, maxWidth: number, lineHeight: number) => {
+      const words = text.split(' ')
+      let line = ''
+      let currentY = y
+
+      for (let i = 0; i < words.length; i++) {
+        const testLine = line + words[i] + ' '
+        const metrics = ctx.measureText(testLine)
+        const testWidth = metrics.width
+        
+        if (testWidth > maxWidth && i > 0) {
+          ctx.fillText(line, x, currentY)
+          line = words[i] + ' '
+          currentY += lineHeight
+        } else {
+          line = testLine
+        }
+      }
+      ctx.fillText(line, x, currentY)
     }
 
     const draw = () => {
@@ -105,14 +298,71 @@ function App() {
       ctx.fillStyle = '#eee'
       ctx.fillRect(0, 0, width, height)
 
+      // Draw score and level above the day headers with better styling
+      // Score on the left
+      ctx.fillStyle = '#2E8B57' // Sea green color
+      ctx.font = 'bold 20px sans-serif'
+      ctx.textAlign = 'left'
+      ctx.fillText(`Score: ${currentScore}`, 10, 25)
+      
+      // Level on the right
+      ctx.fillStyle = '#B8860B' // Dark golden rod color
+      ctx.font = 'bold 20px sans-serif'
+      ctx.textAlign = 'right'
+      ctx.fillText(`Level: ${currentLevel}`, width - 10, 25)
+
+      // Draw time labels on the left
+      ctx.fillStyle = '#666'
+      ctx.font = '14px sans-serif'
+      ctx.textAlign = 'right'
+      for (let hour = startHour; hour <= endHour; hour++) {
+        const y = (hour - startHour) * hourHeight + headerHeight + 35
+        const timeLabel = hour === 12 ? '12 PM' : 
+                         hour > 12 ? `${hour - 12} PM` : 
+                         hour === 0 ? '12 AM' : `${hour} AM`
+        ctx.fillText(timeLabel, leftMargin - 10, y)
+      }
+
+      // Draw day-of-week headers (moved down to avoid score overlap)
+      ctx.fillStyle = '#333'
+      ctx.font = 'bold 18px sans-serif'
+      ctx.textAlign = 'center'
+      daysOfWeek.forEach((day, index) => {
+        const x = index * (brickWidth + 10) + leftMargin + 5 + brickWidth / 2
+        ctx.fillText(day, x, 55) // Moved down from 35 to 55
+      })
+
+      // Draw horizontal grid lines for hours
+      ctx.strokeStyle = '#ddd'
+      ctx.lineWidth = 1
+      for (let hour = startHour; hour <= endHour; hour++) {
+        const y = (hour - startHour) * hourHeight + headerHeight + 20
+        ctx.beginPath()
+        ctx.moveTo(leftMargin, y)
+        ctx.lineTo(width, y)
+        ctx.stroke()
+      }
+
+      // Draw vertical grid lines for days
+      for (let day = 0; day <= 7; day++) {
+        const x = day * (brickWidth + 10) + leftMargin + 5
+        ctx.beginPath()
+        ctx.moveTo(x, headerHeight + 20)
+        ctx.lineTo(x, (endHour - startHour) * hourHeight + headerHeight + 20)
+        ctx.stroke()
+      }
+
+      // Draw paddle
       ctx.fillStyle = '#333'
       ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height)
 
+      // Draw ball
       ctx.beginPath()
       ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2)
       ctx.fillStyle = '#ff5733'
       ctx.fill()
 
+      // Draw event blocks
       bricks.forEach((b) => {
         if (b.broken) return
         ctx.fillStyle = '#add8e6'
@@ -121,8 +371,35 @@ function App() {
         ctx.strokeRect(b.x, b.y, b.width, b.height)
         ctx.fillStyle = '#000'
         ctx.font = '12px sans-serif'
-        ctx.fillText(b.title, b.x + 4, b.y + 14)
+        ctx.textAlign = 'left'
+        
+        // Use text wrapping for meeting titles
+        wrapText(b.title, b.x + 4, b.y + 14, b.width - 8, 14)
       })
+
+      // Draw game state messages
+      if (currentGameState === 'levelCleared') {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+        ctx.fillRect(0, 0, width, height)
+        ctx.fillStyle = '#00ff00'
+        ctx.font = 'bold 48px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillText('Level Cleared!', width / 2, height / 2 - 30)
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 24px sans-serif'
+        ctx.fillText(`Starting Level ${currentLevel + 1}...`, width / 2, height / 2 + 30)
+      } else if (currentGameState === 'gameOver') {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+        ctx.fillRect(0, 0, width, height)
+        ctx.fillStyle = '#ff0000'
+        ctx.font = 'bold 48px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillText('Game Over!', width / 2, height / 2 - 30)
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 24px sans-serif'
+        ctx.fillText(`Final Score: ${currentScore}`, width / 2, height / 2 + 30)
+        ctx.fillText('Restarting...', width / 2, height / 2 + 60)
+      }
     }
 
     const loop = () => {
@@ -135,10 +412,56 @@ function App() {
     return () => {
       document.removeEventListener('keydown', keyDown)
       document.removeEventListener('keyup', keyUp)
+      if (levelClearedTimer !== null) {
+        clearTimeout(levelClearedTimer)
+      }
+      if (gameOverTimer !== null) {
+        clearTimeout(gameOverTimer)
+      }
     }
-  }, [])
+  }, [events]) // Only restart when events change, not when score/level/gameState change
 
-  return <canvas ref={canvasRef} width={800} height={600} />
+  return (
+    <div className="app-container">
+      <h1 className="app-title">Calendar Breakout!</h1>
+      <div className="controls">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".ics"
+          onChange={handleFileUpload}
+          style={{ display: 'none' }}
+        />
+        <button 
+          className="import-button"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Import Calendar (iCal)
+        </button>
+        <button 
+          className="reset-button"
+          onClick={() => {
+            setEvents(getSampleEvents())
+            resetGame()
+          }}
+        >
+          Reset to Sample
+        </button>
+        <button 
+          className={`sound-toggle ${soundEnabled ? 'sound-on' : 'sound-off'}`}
+          onClick={() => setSoundEnabled(!soundEnabled)}
+          title={`Sound ${soundEnabled ? 'On' : 'Off'}`}
+        >
+          🔊 {soundEnabled ? 'Sound On' : 'Sound Off'}
+        </button>
+      </div>
+      <canvas ref={canvasRef} width={800} height={900} />
+      <div className="instructions">
+        <p>Use arrow keys to move the paddle and break your calendar events!</p>
+        <p>Import your own iCal file to play with your real calendar.</p>
+      </div>
+    </div>
+  )
 }
 
 export default App

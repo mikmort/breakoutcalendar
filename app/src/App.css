@@ -6,7 +6,107 @@
   background: #f5f5f5;
 }
 
+.app-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.app-title {
+  font-size: 3rem;
+  font-weight: bold;
+  background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #ffeaa7);
+  background-size: 300% 300%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradientShift 3s ease-in-out infinite;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+  margin: 20px 0 10px 0;
+  text-align: center;
+  letter-spacing: 2px;
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.controls {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 10px;
+}
+
+.import-button, .reset-button, .sound-toggle {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.import-button {
+  background: #4CAF50;
+  color: white;
+}
+
+.import-button:hover {
+  background: #45a049;
+  transform: translateY(-1px);
+}
+
+.reset-button {
+  background: #ff9800;
+  color: white;
+}
+
+.reset-button:hover {
+  background: #e68900;
+  transform: translateY(-1px);
+}
+
+.sound-toggle {
+  background: #6c757d;
+  color: white;
+}
+
+.sound-toggle.sound-on {
+  background: #28a745;
+}
+
+.sound-toggle.sound-off {
+  background: #dc3545;
+}
+
+.sound-toggle:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
 canvas {
-  border: 1px solid #ccc;
+  border: 2px solid #ddd;
+  border-radius: 8px;
   background: #fff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  font-family: Arial, sans-serif;
+}
+
+.instructions {
+  text-align: center;
+  max-width: 600px;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.instructions p {
+  margin: 5px 0;
 }
